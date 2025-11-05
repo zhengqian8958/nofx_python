@@ -1,0 +1,46 @@
+# Web框架
+fastapi==0.104.1
+uvicorn==0.24.0
+
+# 交易所API
+python-binance==1.0.17
+
+# 数据处理和科学计算
+pandas
+numpy
+
+# 技术指标计算（替代TA-Lib）
+# 使用pandas-ta作为主要技术指标库
+pandas-ta
+
+# HTTP客户端
+requests==2.31.0
+
+# 异步处理
+asyncio-mqtt==0.16.1
+
+# 日志记录
+loguru==0.7.2
+
+# 配置文件处理
+pyyaml==6.0.1
+
+# 数据可视化（如果需要）
+matplotlib==3.8.2
+
+# JSON处理
+json5==0.9.14
+
+# 时间处理
+python-dateutil==2.8.2
+
+# WebSocket支持
+websockets==12.0
+
+# 环境变量管理
+python-dotenv==1.0.0
+
+# CORS支持
+python-multipart==0.0.6
+
+hyperliquid-python-sdk
