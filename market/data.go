@@ -6,9 +6,19 @@ import (
 	"io/ioutil"
 	"math"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
+	"time"
 )
+
+// 添加全局变量存储代理URL
+var proxyURL string
+
+// SetProxy 设置HTTP代理
+func SetProxy(proxy string) {
+	proxyURL = proxy
+}
 
 // Data 市场数据结构
 type Data struct {
@@ -141,7 +151,10 @@ func getKlines(symbol, interval string, limit int) ([]Kline, error) {
 	url := fmt.Sprintf("https://fapi.binance.com/fapi/v1/klines?symbol=%s&interval=%s&limit=%d",
 		symbol, interval, limit)
 
-	resp, err := http.Get(url)
+	// 创建带代理的HTTP客户端
+	client := createHTTPClient()
+
+	resp, err := client.Get(url)
 	if err != nil {
 		return nil, err
 	}
@@ -390,7 +403,10 @@ func calculateLongerTermData(klines []Kline) *LongerTermData {
 func getOpenInterestData(symbol string) (*OIData, error) {
 	url := fmt.Sprintf("https://fapi.binance.com/fapi/v1/openInterest?symbol=%s", symbol)
 
-	resp, err := http.Get(url)
+	// 创建带代理的HTTP客户端
+	client := createHTTPClient()
+
+	resp, err := client.Get(url)
 	if err != nil {
 		return nil, err
 	}
@@ -423,7 +439,10 @@ func getOpenInterestData(symbol string) (*OIData, error) {
 func getFundingRate(symbol string) (float64, error) {
 	url := fmt.Sprintf("https://fapi.binance.com/fapi/v1/premiumIndex?symbol=%s", symbol)
 
-	resp, err := http.Get(url)
+	// 创建带代理的HTTP客户端
+	client := createHTTPClient()
+
+	resp, err := client.Get(url)
 	if err != nil {
 		return 0, err
 	}
@@ -549,4 +568,23 @@ func parseFloat(v interface{}) (float64, error) {
 	default:
 		return 0, fmt.Errorf("unsupported type: %T", v)
 	}
+}
+
+// createHTTPClient 创建带代理的HTTP客户端
+func createHTTPClient() *http.Client {
+	client := &http.Client{
+		Timeout: 30 * time.Second,
+	}
+
+	// 如果配置了代理URL，则设置代理
+	if proxyURL != "" {
+		proxyURLParsed, err := url.Parse(proxyURL)
+		if err == nil {
+			client.Transport = &http.Transport{
+				Proxy: http.ProxyURL(proxyURLParsed),
+			}
+		}
+	}
+
+	return client
 }

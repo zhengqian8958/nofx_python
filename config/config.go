@@ -59,6 +59,7 @@ type Config struct {
 	MaxDrawdown        float64        `json:"max_drawdown"`
 	StopTradingMinutes int            `json:"stop_trading_minutes"`
 	Leverage           LeverageConfig `json:"leverage"` // 杠杆配置
+	ProxyURL           string         `json:"proxy_url,omitempty"` // HTTP代理URL
 }
 
 // LoadConfig 从文件加载配置

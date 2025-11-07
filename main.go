@@ -6,6 +6,7 @@ import (
 	"nofx/api"
 	"nofx/config"
 	"nofx/manager"
+	"nofx/market"
 	"nofx/pool"
 	"os"
 	"os/signal"
@@ -33,6 +34,12 @@ func main() {
 
 	log.Printf("✓ 配置加载成功，共%d个trader参赛", len(cfg.Traders))
 	fmt.Println()
+
+	// 设置HTTP代理（如果配置了）
+	if cfg.ProxyURL != "" {
+		market.SetProxy(cfg.ProxyURL)
+		log.Printf("✓ 已配置HTTP代理: %s", cfg.ProxyURL)
+	}
 
 	// 设置是否使用默认主流币种
 	pool.SetUseDefaultCoins(cfg.UseDefaultCoins)
