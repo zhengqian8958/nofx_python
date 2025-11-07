@@ -174,7 +174,7 @@ class HyperliquidTrader(Trader):
         
         try:
             order_result = self.exchange.order(
-                coin=coin,
+                name=coin,
                 is_buy=True,
                 sz=rounded_quantity,  # 使用四舍五入后的数量
                 limit_px=aggressive_price,  # 使用处理后的价格
@@ -223,7 +223,7 @@ class HyperliquidTrader(Trader):
         
         try:
             order_result = self.exchange.order(
-                coin=coin,
+                name=coin,
                 is_buy=False,
                 sz=rounded_quantity,  # 使用四舍五入后的数量
                 limit_px=aggressive_price,  # 使用处理后的价格
@@ -274,7 +274,7 @@ class HyperliquidTrader(Trader):
         
         try:
             order_result = self.exchange.order(
-                coin=coin,
+                name=coin,
                 is_buy=False,
                 sz=rounded_quantity,  # 使用四舍五入后的数量
                 limit_px=aggressive_price,  # 使用处理后的价格
@@ -331,7 +331,7 @@ class HyperliquidTrader(Trader):
         
         try:
             order_result = self.exchange.order(
-                coin=coin,
+                name=coin,
                 is_buy=True,
                 sz=rounded_quantity,  # 使用四舍五入后的数量
                 limit_px=aggressive_price,  # 使用处理后的价格
@@ -419,7 +419,7 @@ class HyperliquidTrader(Trader):
             }
             
             self.exchange.order(
-                coin=coin,
+                name=coin,
                 is_buy=is_buy,
                 sz=rounded_quantity,    # 使用四舍五入后的数量
                 limit_px=rounded_stop_price,   # 使用处理后的价格
@@ -454,7 +454,7 @@ class HyperliquidTrader(Trader):
             }
             
             self.exchange.order(
-                coin=coin,
+                name=coin,
                 is_buy=is_buy,
                 sz=rounded_quantity,          # 使用四舍五入后的数量
                 limit_px=rounded_take_profit_price,   # 使用处理后的价格
