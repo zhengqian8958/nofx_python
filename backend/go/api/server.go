@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"nofx/manager"
+	"backend/go/manager"
 
 	"github.com/gin-gonic/gin"
 )

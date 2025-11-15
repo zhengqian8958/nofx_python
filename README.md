@@ -152,45 +152,49 @@ nofx/
 ├── main.go                          # Program entry (multi-trader manager)
 ├── config.json                      # Configuration file (API keys, multi-trader config)
 │
-├── api/                            # HTTP API service
-│   └── server.go                   # Gin framework, RESTful API
+├── backend/                         # Backend implementations
+│   ├── go/                          # Go backend (main implementation)
+│   │   ├── api/                     # HTTP API service
+│   │   │   └── server.go            # Gin framework, RESTful API
+│   │   ├── trader/                  # Trading core
+│   │   │   ├── auto_trader.go       # Auto trading main controller (single trader)
+│   │   │   └── binance_futures.go   # Binance futures API wrapper
+│   │   ├── manager/                 # Multi-trader management
+│   │   │   └── trader_manager.go    # Manages multiple trader instances
+│   │   ├── mcp/                     # Model Context Protocol - AI communication
+│   │   │   └── client.go            # AI API client (DeepSeek/Qwen integration)
+│   │   ├── decision/                # AI decision engine
+│   │   │   └── engine.go            # Decision logic with historical feedback
+│   │   ├── market/                  # Market data fetching
+│   │   │   └── data.go              # Market data & technical indicators (K-line, RSI, MACD)
+│   │   ├── pool/                    # Coin pool management
+│   │   │   └── coin_pool.go         # AI500 + OI Top merged pool
+│   │   ├── logger/                  # Logging system
+│   │   │   └── decision_logger.go   # Decision recording + performance analysis
+│   │   └── decision_logs/           # Decision log storage
+│   │       ├── qwen_trader/         # Qwen trader logs
+│   │       └── deepseek_trader/     # DeepSeek trader logs
+│   └── python/                      # Python backend (alternative implementation)
+│       ├── main.py                  # Python entry point
+│       ├── config/                  # Configuration module
+│       ├── trader/                  # Trading modules
+│       ├── manager/                 # Trader management
+│       ├── mcp/                     # AI communication
+│       ├── decision/                # Decision engine
+│       ├── market/                  # Market data
+│       ├── pool/                    # Coin pool
+│       └── logger/                  # Logging system
 │
-├── trader/                         # Trading core
-│   ├── auto_trader.go              # Auto trading main controller (single trader)
-│   └── binance_futures.go          # Binance futures API wrapper
-│
-├── manager/                        # Multi-trader management
-│   └── trader_manager.go           # Manages multiple trader instances
-│
-├── mcp/                            # Model Context Protocol - AI communication
-│   └── client.go                   # AI API client (DeepSeek/Qwen integration)
-│
-├── decision/                       # AI decision engine
-│   └── engine.go                   # Decision logic with historical feedback
-│
-├── market/                         # Market data fetching
-│   └── data.go                     # Market data & technical indicators (K-line, RSI, MACD)
-│
-├── pool/                           # Coin pool management
-│   └── coin_pool.go                # AI500 + OI Top merged pool
-│
-├── logger/                         # Logging system
-│   └── decision_logger.go          # Decision recording + performance analysis
-│
-├── decision_logs/                  # Decision log storage
-│   ├── qwen_trader/                # Qwen trader logs
-│   └── deepseek_trader/            # DeepSeek trader logs
-│
-└── web/                            # React frontend
+└── frontend/                        # React frontend
     ├── src/
-    │   ├── components/             # React components
-    │   │   ├── EquityChart.tsx     # Equity curve chart
-    │   │   ├── ComparisonChart.tsx # Multi-AI comparison chart
-    │   │   └── CompetitionPage.tsx # Competition leaderboard
-    │   ├── lib/api.ts              # API call wrapper
-    │   ├── types/index.ts          # TypeScript types
-    │   ├── index.css               # Binance-style CSS
-    │   └── App.tsx                 # Main app
+    │   ├── components/              # React components
+    │   │   ├── EquityChart.tsx      # Equity curve chart
+    │   │   ├── ComparisonChart.tsx  # Multi-AI comparison chart
+    │   │   └── CompetitionPage.tsx  # Competition leaderboard
+    │   ├── lib/api.ts               # API call wrapper
+    │   ├── types/index.ts           # TypeScript types
+    │   ├── index.css                # Binance-style CSS
+    │   └── App.tsx                  # Main app
     └── package.json
 ```
 
@@ -255,7 +259,8 @@ nano config.json  # or use any editor
 ```
 
 #### Step 2: One-Click Start
-```bash
+```
+
 # Option 1: Use convenience script (Recommended)
 chmod +x start.sh
 ./start.sh start --build
@@ -296,7 +301,7 @@ Open your browser and visit: **http://localhost:3000**
 #### Installing TA-Lib
 
 **macOS:**
-```bash
+``bash
 brew install ta-lib
 ```
 
@@ -316,16 +321,22 @@ cd nofx
 
 ### 3. Install Dependencies
 
-**Backend:**
+**Backend (Go):**
 ```bash
+cd backend/go
 go mod download
+```
+
+**Backend (Python):**
+```bash
+cd backend/python
+pip install -r requirements.txt
 ```
 
 **Frontend:**
 ```bash
-cd web
+cd frontend
 npm install
-cd ..
 ```
 
 ### 4. Get AI API Keys
@@ -382,7 +393,7 @@ Before configuring the system, you need to obtain AI API keys. Choose one of the
 
 **Step 1**: Copy and rename the example config file
 
-```bash
+``bash
 cp config.json.example config.json
 ```
 
@@ -505,7 +516,7 @@ cp config.json.example config.json
 
 **Step 2**: Configure `config.json` for Aster
 
-```json
+```
 {
   "traders": [
     {
@@ -697,7 +708,7 @@ This makes it beginner-friendly! You can even omit this field entirely.
 ```
 
 ✅ **Option 2: Omit the field (uses default coins automatically)**
-```json
+```
 // Just don't include "use_default_coins" at all
 "coin_pool_api_url": "",
 "oi_top_api_url": ""
@@ -983,7 +994,7 @@ Each decision cycle (default 3 minutes), the system executes the following intel
 
 ### Historical Feedback (Auto-added to Prompt)
 
-```markdown
+``mapping
 ## 📊 Historical Performance Feedback
 
 ### Overall Performance

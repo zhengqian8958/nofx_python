@@ -3,8 +3,8 @@ package manager
 import (
 	"fmt"
 	"log"
-	"nofx/config"
-	"nofx/trader"
+	"backend/go/config"
+	"backend/go/trader"
 	"sync"
 	"time"
 )

@@ -14,7 +14,7 @@ services:
       - ./config.json:/app/config.json:ro
       - ./decision_logs:/app/decision_logs
       - /etc/localtime:/etc/localtime:ro  # 同步主机时间
-      - frontend-dist:/app/web/dist-shared:rw  # 共享前端文件
+      - frontend-dist:/app/frontend/dist-shared:rw  # 共享前端文件
     environment:
       - TZ=Asia/Shanghai  # 使用中国时区
     networks:
@@ -25,7 +25,7 @@ services:
       timeout: 10s
       retries: 3
       start_period: 60s
-    command: sh -c "cp -r /app/web/dist/* /app/web/dist-shared/ 2>/dev/null || true && exec ./nofx"
+    command: sh -c "cp -r /app/frontend/dist/* /app/frontend/dist-shared/ 2>/dev/null || true && exec ./nofx"
 
   # Frontend (Nginx)
   nofx-frontend:

@@ -35,13 +35,13 @@ RUN wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz && \
 WORKDIR /app
 
 # Copy go mod files
-COPY go.mod go.sum ./
+COPY backend/go/go.mod backend/go/go.sum ./
 
 # Download dependencies
 RUN go mod download
 
 # Copy backend source code
-COPY . .
+COPY backend/go/ .
 
 # Build the application
 RUN CGO_ENABLED=1 GOOS=linux go build -a -installsuffix cgo -o nofx .
@@ -49,16 +49,16 @@ RUN CGO_ENABLED=1 GOOS=linux go build -a -installsuffix cgo -o nofx .
 # Frontend build stage
 FROM node:18-alpine AS frontend-builder
 
-WORKDIR /app/web
+WORKDIR /app/frontend
 
 # Copy package files
-COPY web/package*.json ./
+COPY frontend/package*.json ./
 
 # Install dependencies
 RUN npm ci
 
 # Copy frontend source
-COPY web/ ./
+COPY frontend/ ./
 
 # Build frontend
 RUN npm run build
@@ -106,7 +106,7 @@ WORKDIR /app
 COPY --from=backend-builder /app/nofx .
 
 # Copy frontend build from builder
-COPY --from=frontend-builder /app/web/dist ./web/dist
+COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
 
 # Create directories for logs and data
 RUN mkdir -p /app/decision_logs
