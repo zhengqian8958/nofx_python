@@ -73,6 +73,13 @@ class Context:
     performance: Any = None  # 历史表现分析（logger.PerformanceAnalysis）
     btc_eth_leverage: int = 0  # BTC/ETH杠杆倍数（从配置读取）
     altcoin_leverage: int = 0  # 山寨币杠杆倍数（从配置读取）
+    short_interval: str = "3m"  # 短周期K线间隔（从scan_interval_minutes配置转换）
+    # 交易状态字段（对齐 system_prompt 输入要求）
+    last_enter_time: str = ""  # 最后开仓时间 ISO 格式
+    last_stop_time: str = ""  # 最后止损时间 ISO 格式
+    last_take_profit_time: str = ""  # 最后止盈时间 ISO 格式
+    consecutive_losses_count: int = 0  # 连续亏损次数
+    daily_loss_percent: float = 0.0  # 单日亏损百分比
 
 
 @dataclass
@@ -142,7 +149,8 @@ def _fetch_market_data_for_context(ctx: Context) -> None:
     
     for symbol in symbol_set:
         try:
-            data = get_market_data(symbol)
+            # 使用配置的短周期K线间隔获取市场数据
+            data = get_market_data(symbol, ctx.short_interval)
             
             # ⚠️ 流动性过滤：持仓价值低于15M USD的币种不做（多空都不做）
             # 持仓价值 = 持仓量 × 当前价格
@@ -383,10 +391,111 @@ def _build_user_prompt(ctx: Context) -> str:
     # BTC 市场
     if "BTCUSDT" in ctx.market_data_map:
         btc_data = ctx.market_data_map["BTCUSDT"]
-        prompt_lines.append(f"**BTC**: {btc_data.current_price:.2f} (1h: {btc_data.price_change_1h:+.2f}%, 4h: {btc_data.price_change_4h:+.2f}%) | MACD: {btc_data.current_macd:.4f} | RSI: {btc_data.current_rsi7:.2f}\n")
+        # 计算BTC中期/长期涨跌幅（基于动态周期 medium/long）
+        medium_change_pct = None
+        long_change_pct = None
+        try:
+            if btc_data.timeframe_medium and btc_data.timeframe_medium.mid_prices:
+                mp = btc_data.timeframe_medium.mid_prices
+                if mp[0] > 0:
+                    medium_change_pct = (mp[-1] - mp[0]) / mp[0] * 100
+            if btc_data.timeframe_long and btc_data.timeframe_long.mid_prices:
+                lp = btc_data.timeframe_long.mid_prices
+                if lp[0] > 0:
+                    long_change_pct = (lp[-1] - lp[0]) / lp[0] * 100
+        except Exception:
+            pass
+        medium_str = f"{medium_change_pct:+.2f}%" if medium_change_pct is not None else "N/A"
+        long_str = f"{long_change_pct:+.2f}%" if long_change_pct is not None else "N/A"
+        prompt_lines.append(f"**BTC**: {btc_data.current_price:.2f} ({btc_data.medium_interval}: {medium_str}, {btc_data.long_interval}: {long_str}) | MACD: {btc_data.current_macd:.4f} | RSI: {btc_data.current_rsi7:.2f}\n")
+        
+        # 单独提取 BTC 多周期指标（对齐 system_prompt 输入要求）
+        prompt_lines.append("\n**BTC 多周期指标**（用于山寨币交易的 BTC 状态确认）:\n\n")
+        
+        # BTC MACD (short/medium/long)
+        btc_macd_short = btc_data.timeframe_short.macd_values if btc_data.timeframe_short else []
+        btc_macd_medium = btc_data.timeframe_medium.macd_values if btc_data.timeframe_medium else []
+        btc_macd_long = btc_data.timeframe_long.macd_values if btc_data.timeframe_long else []
+        if btc_macd_short:
+            prompt_lines.append(f"btc_macd_short ({btc_data.short_interval}): [{', '.join([f'{v:.4f}' for v in btc_macd_short])}]\n")
+        if btc_macd_medium:
+            prompt_lines.append(f"btc_macd_medium ({btc_data.medium_interval}): [{', '.join([f'{v:.4f}' for v in btc_macd_medium])}]\n")
+        if btc_macd_long:
+            prompt_lines.append(f"btc_macd_long ({btc_data.long_interval}): [{', '.join([f'{v:.4f}' for v in btc_macd_long])}]\n")
+        
+        # BTC 价格序列（用于计算波动率）
+        btc_prices = btc_data.timeframe_short.mid_prices if btc_data.timeframe_short else []
+        if btc_prices:
+            prompt_lines.append(f"btc_price (short): [{', '.join([f'{p:.2f}' for p in btc_prices])}]\n")
+        
+        # BTC 日波动率（基于 long 周期价格序列）
+        try:
+            if btc_data.timeframe_long and btc_data.timeframe_long.mid_prices:
+                lp = btc_data.timeframe_long.mid_prices
+                if len(lp) >= 2:
+                    price_changes = [(lp[i] - lp[i-1]) / lp[i-1] * 100 for i in range(1, len(lp)) if lp[i-1] > 0]
+                    if price_changes:
+                        btc_volatility = sum(abs(c) for c in price_changes) / len(price_changes)
+                        prompt_lines.append(f"btc_daily_volatility_percent: {btc_volatility:.2f}%\n")
+        except Exception:
+            pass
+        
+        prompt_lines.append("\n")
     
     # 账户
     prompt_lines.append(f"**账户**: 净值{ctx.account.total_equity:.2f} | 余额{ctx.account.available_balance:.2f} ({ctx.account.available_balance/ctx.account.total_equity*100:.1f}%) | 盈亏{ctx.account.total_pnl:+.2f}% | 保证金{ctx.account.margin_used_pct:.1f}% | 持仓{ctx.account.position_count}个\n")
+    
+    # 交易状态约束（对齐 system_prompt 输入要求与决策流程检查）
+    prompt_lines.append("\n**交易状态约束**（决策流程第 1-2 步检查）:\n\n")
+    
+    # 当前持仓状态（简化版，用于冷却期与连续亏损判定）
+    if ctx.positions:
+        for pos in ctx.positions:
+            side_str = "long" if pos.side.lower() == "long" else "short"
+            prompt_lines.append(f"current_position_{pos.symbol}: {{side: {side_str}, entry_price: {pos.entry_price:.4f}, size_coins: {pos.quantity:.4f}}}\n")
+    else:
+        prompt_lines.append("current_position: {side: null, entry_price: null, size_coins: null}\n")
+    
+    # 冷却期时间戳（ISO 格式）
+    prompt_lines.append(f"last_enter_time: {ctx.last_enter_time if ctx.last_enter_time else 'null'}\n")
+    prompt_lines.append(f"last_stop_time: {ctx.last_stop_time if ctx.last_stop_time else 'null'}\n")
+    prompt_lines.append(f"last_take_profit_time: {ctx.last_take_profit_time if ctx.last_take_profit_time else 'null'}\n")
+    
+    # 连续亏损计数
+    prompt_lines.append(f"consecutive_losses_count: {ctx.consecutive_losses_count}\n")
+    
+    # 单日亏损百分比（基于 ctx 传入或当前账户盈亏计算）
+    daily_loss = ctx.daily_loss_percent if ctx.daily_loss_percent > 0 else abs(min(0, ctx.account.total_pnl_pct))
+    prompt_lines.append(f"daily_loss_percent: {daily_loss:.2f}%\n")
+    
+    # 冷却状态计算（基于时间戳）
+    cooldown_status = "ok"
+    try:
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc)
+        # 检查开仓冷却（≥9分钟）
+        if ctx.last_enter_time:
+            last_enter = datetime.fromisoformat(ctx.last_enter_time.replace('Z', '+00:00'))
+            enter_minutes = (now - last_enter).total_seconds() / 60
+            if enter_minutes < 9:
+                cooldown_status = "cooling"
+        # 检查止损冷却（≥6分钟）
+        if ctx.last_stop_time:
+            last_stop = datetime.fromisoformat(ctx.last_stop_time.replace('Z', '+00:00'))
+            stop_minutes = (now - last_stop).total_seconds() / 60
+            if stop_minutes < 6:
+                cooldown_status = "cooling"
+        # 检查止盈冷却（≥3分钟）
+        if ctx.last_take_profit_time:
+            last_tp = datetime.fromisoformat(ctx.last_take_profit_time.replace('Z', '+00:00'))
+            tp_minutes = (now - last_tp).total_seconds() / 60
+            if tp_minutes < 3:
+                cooldown_status = "cooling"
+    except Exception:
+        pass
+    prompt_lines.append(f"cooldown_status: {cooldown_status}\n")
+    
+    prompt_lines.append("\n")
     
     # 持仓（完整市场数据）
     if ctx.positions:

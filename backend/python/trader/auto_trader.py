@@ -102,6 +102,12 @@ class AutoTrader:
         self.call_count = 0  # AI调用次数
         self.position_first_seen_time: Dict[str, int] = {}  # 持仓首次出现时间 (symbol_side -> timestamp毫秒)
         
+        # 交易状态追踪（对齐 system_prompt 输入要求）
+        self.last_enter_time: str = ""  # 最后开仓时间 ISO 格式
+        self.last_stop_time: str = ""  # 最后止损时间 ISO 格式
+        self.last_take_profit_time: str = ""  # 最后止盈时间 ISO 格式
+        self.consecutive_losses_count: int = 0  # 连续亏损次数
+        
         # 添加调试信息
         print(f"DEBUG: Initializing AutoTrader {config.name}")
         print(f"DEBUG: AI Model: {config.ai_model}")
@@ -253,6 +259,13 @@ class AutoTrader:
         for coin in ctx.candidate_coins:
             record.candidate_coins.append(coin.symbol)
         
+        # 保存交易状态字段
+        record.last_enter_time = self.last_enter_time
+        record.last_stop_time = self.last_stop_time
+        record.last_take_profit_time = self.last_take_profit_time
+        record.consecutive_losses_count = self.consecutive_losses_count
+        record.daily_loss_percent = abs(min(0, ctx.account.total_pnl_pct))
+        
         logging.info(f"📊 账户净值: {ctx.account.total_equity:.2f} USDT | 可用: {ctx.account.available_balance:.2f} USDT | 持仓: {ctx.account.position_count}")
         
         # 4. 调用AI获取完整决策
@@ -356,6 +369,9 @@ class AutoTrader:
         """构建交易上下文"""
         if not self.trader:
             raise Exception("交易器未初始化")
+        
+        # 从最新决策记录恢复交易状态（防止重启后丢失状态）
+        self._restore_trading_state_from_logs()
         
         # 1. 获取账户信息
         balance = self.trader.get_balance()
@@ -476,6 +492,7 @@ class AutoTrader:
             call_count=self.call_count,
             btc_eth_leverage=self.config.btc_eth_leverage,   # 使用配置的杠杆倍数
             altcoin_leverage=self.config.altcoin_leverage,   # 使用配置的杠杆倍数
+            short_interval=self._minutes_to_interval(self.config.scan_interval_minutes),  # 转换配置的扫描间隔为K线周期
             account=AccountInfo(
                 total_equity=total_equity,
                 available_balance=available_balance,
@@ -488,9 +505,58 @@ class AutoTrader:
             positions=position_infos,
             candidate_coins=candidate_coins,
             performance=performance,  # 添加历史表现分析
+            # 交易状态字段（对齐 system_prompt 输入要求）
+            last_enter_time=self.last_enter_time,
+            last_stop_time=self.last_stop_time,
+            last_take_profit_time=self.last_take_profit_time,
+            consecutive_losses_count=self.consecutive_losses_count,
+            daily_loss_percent=abs(min(0, total_pnl_pct)),
         )
         
         return ctx
+    
+    def _minutes_to_interval(self, minutes: int) -> str:
+        """将分钟数转换为Binance K线间隔字符串"""
+        interval_map = {
+            1: "1m",
+            3: "3m",
+            5: "5m",
+            15: "15m",
+            30: "30m",
+            60: "1h",
+            120: "2h",
+            240: "4h",
+            360: "6h",
+            480: "8h",
+            720: "12h",
+            1440: "1d",
+            4320: "3d",
+            10080: "1w",
+        }
+        return interval_map.get(minutes, "3m")  # 默认3m
+    
+    def _restore_trading_state_from_logs(self) -> None:
+        """从最新决策记录恢复交易状态（防止重启后丢失状态）"""
+        if not self.decision_logger:
+            return
+        
+        try:
+            # 获取最新的决策记录
+            latest_records = self.decision_logger.get_latest_records(1)
+            if not latest_records:
+                return
+            
+            last_record = latest_records[0]
+            
+            # 恢复交易状态字段
+            self.last_enter_time = last_record.get("last_enter_time", "")
+            self.last_stop_time = last_record.get("last_stop_time", "")
+            self.last_take_profit_time = last_record.get("last_take_profit_time", "")
+            self.consecutive_losses_count = last_record.get("consecutive_losses_count", 0)
+            
+            logging.info(f"💾 已从日志恢复交易状态（最后开仓: {self.last_enter_time or 'null'}, 连续亏损: {self.consecutive_losses_count}）")
+        except Exception as e:
+            logging.warning(f"⚠️  从日志恢复状态失败: {e}")
     
     def _execute_decision_with_record(self, decision: Decision, action_record: Dict[str, Any]) -> None:
         """执行AI决策并记录详细信息"""
@@ -545,6 +611,10 @@ class AutoTrader:
         pos_key = f"{decision.symbol}_long"
         self.position_first_seen_time[pos_key] = int(time.time() * 1000)
         
+        # 更新最后开仓时间（ISO 格式）
+        from datetime import datetime, timezone
+        self.last_enter_time = datetime.now(timezone.utc).isoformat()
+        
         # 设置止损止盈
         try:
             self.trader.set_stop_loss(decision.symbol, "LONG", quantity, decision.stop_loss)
@@ -589,6 +659,10 @@ class AutoTrader:
         pos_key = f"{decision.symbol}_short"
         self.position_first_seen_time[pos_key] = int(time.time() * 1000)
         
+        # 更新最后开仓时间（ISO 格式）
+        from datetime import datetime, timezone
+        self.last_enter_time = datetime.now(timezone.utc).isoformat()
+        
         # 设置止损止盈
         try:
             self.trader.set_stop_loss(decision.symbol, "SHORT", quantity, decision.stop_loss)
@@ -610,6 +684,22 @@ class AutoTrader:
         market_data = get_market_data(decision.symbol)
         action_record["price"] = market_data.current_price
         
+        # 获取持仓信息（判断是止损还是止盈）
+        positions = self.trader.get_positions()
+        is_stop_loss = False
+        is_take_profit = False
+        for pos in positions:
+            if pos["symbol"] == decision.symbol and pos["side"] == "long":
+                entry_price = pos["entry_price"]
+                mark_price = pos["mark_price"]
+                pnl_pct = ((mark_price - entry_price) / entry_price) * 100
+                # 简单判断：亏损 > 1% 为止损，盈利 > 1% 为止盈
+                if pnl_pct < -1.0:
+                    is_stop_loss = True
+                elif pnl_pct > 1.0:
+                    is_take_profit = True
+                break
+        
         # 平仓
         order = self.trader.close_long(decision.symbol, 0)  # 0 = 全部平仓
         
@@ -618,6 +708,15 @@ class AutoTrader:
             action_record["order_id"] = order["order_id"]
         
         logging.info("  ✓ 平仓成功")
+        
+        # 更新最后止损/止盈时间（ISO 格式）
+        from datetime import datetime, timezone
+        if is_stop_loss:
+            self.last_stop_time = datetime.now(timezone.utc).isoformat()
+            logging.info(f"  🛡️ 记录止损时间: {self.last_stop_time}")
+        elif is_take_profit:
+            self.last_take_profit_time = datetime.now(timezone.utc).isoformat()
+            logging.info(f"  🎉 记录止盈时间: {self.last_take_profit_time}")
     
     def _execute_close_short_with_record(self, decision: Decision, action_record: Dict[str, Any]) -> None:
         """执行平空仓并记录详细信息"""
@@ -630,6 +729,22 @@ class AutoTrader:
         market_data = get_market_data(decision.symbol)
         action_record["price"] = market_data.current_price
         
+        # 获取持仓信息（判断是止损还是止盈）
+        positions = self.trader.get_positions()
+        is_stop_loss = False
+        is_take_profit = False
+        for pos in positions:
+            if pos["symbol"] == decision.symbol and pos["side"] == "short":
+                entry_price = pos["entry_price"]
+                mark_price = pos["mark_price"]
+                pnl_pct = ((entry_price - mark_price) / entry_price) * 100
+                # 简单判断：亏损 > 1% 为止损，盈利 > 1% 为止盈
+                if pnl_pct < -1.0:
+                    is_stop_loss = True
+                elif pnl_pct > 1.0:
+                    is_take_profit = True
+                break
+        
         # 平仓
         order = self.trader.close_short(decision.symbol, 0)  # 0 = 全部平仓
         
@@ -638,6 +753,15 @@ class AutoTrader:
             action_record["order_id"] = order["order_id"]
         
         logging.info("  ✓ 平仓成功")
+        
+        # 更新最后止损/止盈时间（ISO 格式）
+        from datetime import datetime, timezone
+        if is_stop_loss:
+            self.last_stop_time = datetime.now(timezone.utc).isoformat()
+            logging.info(f"  🛡️ 记录止损时间: {self.last_stop_time}")
+        elif is_take_profit:
+            self.last_take_profit_time = datetime.now(timezone.utc).isoformat()
+            logging.info(f"  🎉 记录止盈时间: {self.last_take_profit_time}")
     
     def get_id(self) -> str:
         """获取trader ID"""

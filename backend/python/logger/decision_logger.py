@@ -59,6 +59,12 @@ class DecisionRecord:
     positions: List[Dict[str, Any]] = field(default_factory=list)
     candidate_coins: List[str] = field(default_factory=list)
     decisions: List[Dict[str, Any]] = field(default_factory=list)
+    # 交易状态字段（对齐 system_prompt 输入要求）
+    last_enter_time: str = ""  # 最后开仓时间 ISO 格式
+    last_stop_time: str = ""  # 最后止损时间 ISO 格式
+    last_take_profit_time: str = ""  # 最后止盈时间 ISO 格式
+    consecutive_losses_count: int = 0  # 连续亏损次数
+    daily_loss_percent: float = 0.0  # 单日亏损百分比
 
 
 class DecisionLogger:
