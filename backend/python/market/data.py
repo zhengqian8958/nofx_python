@@ -13,8 +13,16 @@ class OIData:
     average: float = 0.0
 
 
-
-
+@dataclass
+class TimeframeData:
+    mid_prices: List[float] = field(default_factory=list)
+    ema20_values: List[float] = field(default_factory=list)
+    macd_values: List[float] = field(default_factory=list)
+    rsi7_values: List[float] = field(default_factory=list)
+    rsi14_values: List[float] = field(default_factory=list)
+    atr3_values: List[float] = field(default_factory=list)
+    atr14_values: List[float] = field(default_factory=list)
+    volume_values: List[float] = field(default_factory=list)  # 新增 volume
 
 
 @dataclass
@@ -63,17 +71,6 @@ def choose_scaled_interval(base_interval: str, min_multiplier: float = 4.0, max_
         return bigger[0]
     # 否则选择最大可用（兜底）
     return _sorted_intervals[-1][0]
-
-@dataclass
-class TimeframeData:
-    mid_prices: List[float] = field(default_factory=list)
-    ema20_values: List[float] = field(default_factory=list)
-    macd_values: List[float] = field(default_factory=list)
-    rsi7_values: List[float] = field(default_factory=list)
-    rsi14_values: List[float] = field(default_factory=list)
-    atr3_values: List[float] = field(default_factory=list)
-    atr14_values: List[float] = field(default_factory=list)
-    volume_values: List[float] = field(default_factory=list)  # 新增 volume
 
 def calculate_timeframe_series(klines: List[Dict]) -> TimeframeData:
     data = TimeframeData()
@@ -154,10 +151,6 @@ def get_klines(symbol: str, interval: str, limit: int) -> List[Dict]:
         klines.append(kline)
     
     return klines
-
-
-
-
 
 
 def get_open_interest_data(symbol: str) -> OIData:

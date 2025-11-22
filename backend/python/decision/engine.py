@@ -201,7 +201,7 @@ def _calculate_max_candidates(ctx: Context) -> int:
 def _build_system_prompt(account_equity: float, btc_eth_leverage: int = 50, altcoin_leverage: int = 20) -> str:
     """构建 System Prompt（从外部文件读取并添加动态内容）"""
     # 定义外部提示词文件路径
-    prompt_file_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "prompt", "system_prompt.txt")
+    prompt_file_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "prompt", "system_prompt2.txt")
     
     try:
         # 读取外部提示词文件内容
