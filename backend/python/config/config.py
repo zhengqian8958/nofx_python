@@ -64,6 +64,7 @@ class Config:
     max_drawdown: float = 0.0
     stop_trading_minutes: int = 0
     leverage: LeverageConfig = field(default_factory=LeverageConfig)
+    proxy_url: str = ""  # 代理服务器地址，如 http://127.0.0.1:7890
 
 
 def load_config(filename: str = "config.json") -> Config:
@@ -85,6 +86,7 @@ def load_config(filename: str = "config.json") -> Config:
     config.max_daily_loss = data.get("max_daily_loss", 0.0)
     config.max_drawdown = data.get("max_drawdown", 0.0)
     config.stop_trading_minutes = data.get("stop_trading_minutes", 0)
+    config.proxy_url = data.get("proxy_url", "")
     
     # 加载杠杆配置
     leverage_data = data.get("leverage", {})

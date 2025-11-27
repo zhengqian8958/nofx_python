@@ -50,6 +50,13 @@ def main() -> None:
     logging.info(f"✓ 配置加载成功，共{len(cfg.traders)}个trader参赛")
     logging.info("")
     
+    # 设置代理（如果配置了）
+    if cfg.proxy_url:
+        from market.data import set_proxy
+        set_proxy(cfg.proxy_url)
+        logging.info(f"✓ 已配置代理服务器: {cfg.proxy_url}")
+        logging.info("")
+    
     # 设置自定义币种列表
     if cfg.custom_coins:
         from pool.coin_pool import set_custom_coins

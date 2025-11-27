@@ -5,6 +5,23 @@ import numpy as np
 from typing import List, Dict, Optional, Tuple
 from dataclasses import dataclass, field
 
+# 全局代理配置
+_PROXY_URL: Optional[str] = None
+
+def set_proxy(proxy_url: str):
+    """设置全局代理地址"""
+    global _PROXY_URL
+    _PROXY_URL = proxy_url if proxy_url else None
+
+def _get_proxies() -> Optional[Dict[str, str]]:
+    """获取代理配置字典"""
+    if _PROXY_URL:
+        return {
+            "http": _PROXY_URL,
+            "https": _PROXY_URL
+        }
+    return None
+
 
 @dataclass
 class OIData:
@@ -132,7 +149,7 @@ def get_klines(symbol: str, interval: str, limit: int) -> List[Dict]:
     """从Binance获取K线数据"""
     url = f"https://fapi.binance.com/fapi/v1/klines?symbol={symbol}&interval={interval}&limit={limit}"
     
-    response = requests.get(url)
+    response = requests.get(url, proxies=_get_proxies())
     response.raise_for_status()
     
     raw_data = response.json()
@@ -157,7 +174,7 @@ def get_open_interest_data(symbol: str) -> OIData:
     """获取OI数据"""
     url = f"https://fapi.binance.com/fapi/v1/openInterest?symbol={symbol}"
     
-    response = requests.get(url)
+    response = requests.get(url, proxies=_get_proxies())
     response.raise_for_status()
     
     result = response.json()
@@ -173,7 +190,7 @@ def get_funding_rate(symbol: str) -> float:
     """获取资金费率"""
     url = f"https://fapi.binance.com/fapi/v1/premiumIndex?symbol={symbol}"
     
-    response = requests.get(url)
+    response = requests.get(url, proxies=_get_proxies())
     response.raise_for_status()
     
     result = response.json()
