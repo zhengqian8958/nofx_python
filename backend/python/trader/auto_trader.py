@@ -346,6 +346,13 @@ class AutoTrader:
             }
             
             try:
+                # ⚠️ 安全检查：防止交易非候选币种（例如 BTC 仅作为市场参考）
+                if d.action in ["open_long", "open_short"]:
+                    # 检查是否在候选币种池中
+                    is_candidate = any(coin.symbol == d.symbol for coin in ctx.candidate_coins)
+                    if not is_candidate:
+                        raise Exception(f"⚠️  {d.symbol} 不在候选币种池中，拒绝开仓（只能交易用户指定的候选币种）")
+                
                 self._execute_decision_with_record(d, action_record)
                 action_record["success"] = True
                 record.execution_log.append(f"✓ {d.symbol} {d.action} 成功")
@@ -492,7 +499,7 @@ class AutoTrader:
             call_count=self.call_count,
             btc_eth_leverage=self.config.btc_eth_leverage,   # 使用配置的杠杆倍数
             altcoin_leverage=self.config.altcoin_leverage,   # 使用配置的杠杆倍数
-            short_interval=self._minutes_to_interval(self.config.scan_interval_minutes),  # 转换配置的扫描间隔为K线周期
+            medium_interval=self._minutes_to_interval(self.config.scan_interval_minutes),  # 转换配置的扫描间隔为K线周期（交易主周期）
             account=AccountInfo(
                 total_equity=total_equity,
                 available_balance=available_balance,
@@ -534,6 +541,38 @@ class AutoTrader:
             10080: "1w",
         }
         return interval_map.get(minutes, "3m")  # 默认3m
+    
+    def _calculate_short_interval(self, medium_interval: str) -> str:
+        """基于medium interval计算short interval（约为medium的1/3到1/5）"""
+        from market.data import interval_to_minutes, SUPPORTED_INTERVALS
+        
+        medium_minutes = interval_to_minutes(medium_interval)
+        if medium_minutes <= 0:
+            return "1m"  # 兜底
+        
+        # 计算目标范围：medium的1/5到1/3
+        target_min = medium_minutes / 5.0
+        target_max = medium_minutes / 3.0
+        
+        # 排序的间隔列表
+        sorted_intervals = sorted(SUPPORTED_INTERVALS.items(), key=lambda kv: kv[1])
+        
+        # 找到范围内最接近1/4的候选
+        target_mid = medium_minutes / 4.0
+        candidates = [(i, m) for i, m in sorted_intervals if target_min <= m <= target_max]
+        
+        if candidates:
+            # 选择最接近1/4的候选
+            best = min(candidates, key=lambda x: abs(x[1] - target_mid))
+            return best[0]
+        
+        # 若范围内无候选，选择小于target_min的最大可用
+        smaller = [(i, m) for i, m in sorted_intervals if m < target_min]
+        if smaller:
+            return smaller[-1][0]
+        
+        # 否则返回最小可用（兜底）
+        return sorted_intervals[0][0]
     
     def _restore_trading_state_from_logs(self) -> None:
         """从最新决策记录恢复交易状态（防止重启后丢失状态）"""

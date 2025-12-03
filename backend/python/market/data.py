@@ -73,6 +73,7 @@ def interval_to_minutes(interval: str) -> int:
     return SUPPORTED_INTERVALS.get(interval, 0)
 
 def choose_scaled_interval(base_interval: str, min_multiplier: float = 4.0, max_multiplier: float = 5.0) -> str:
+    """选择放大后的周期（用于计算long interval，约为base的4-5倍）"""
     base_min = interval_to_minutes(base_interval)
     if base_min <= 0:
         return base_interval
@@ -88,6 +89,33 @@ def choose_scaled_interval(base_interval: str, min_multiplier: float = 4.0, max_
         return bigger[0]
     # 否则选择最大可用（兜底）
     return _sorted_intervals[-1][0]
+
+def choose_short_interval(medium_interval: str) -> str:
+    """选择缩小后的周期（用于计算short interval，约为medium的1/3到1/5）"""
+    medium_min = interval_to_minutes(medium_interval)
+    if medium_min <= 0:
+        return "1m"  # 兜底
+    
+    # 计算目标范围：medium的1/5到1/3
+    target_min = medium_min / 5.0
+    target_max = medium_min / 3.0
+    
+    # 找到范围内最接近1/4的候选
+    target_mid = medium_min / 4.0
+    candidates = [(i, m) for i, m in _sorted_intervals if target_min <= m <= target_max]
+    
+    if candidates:
+        # 选择最接近1/4的候选
+        best = min(candidates, key=lambda x: abs(x[1] - target_mid))
+        return best[0]
+    
+    # 若范围内无候选，选择小于target_min的最大可用
+    smaller = [(i, m) for i, m in _sorted_intervals if m < target_min]
+    if smaller:
+        return smaller[-1][0]
+    
+    # 否则返回最小可用（兜底）
+    return _sorted_intervals[0][0]
 
 def calculate_timeframe_series(klines: List[Dict]) -> TimeframeData:
     data = TimeframeData()
@@ -206,13 +234,21 @@ def normalize_symbol(symbol: str) -> str:
     return symbol + "USDT"
 
 
-def get(symbol: str, short_interval: str = "3m") -> MarketData:
-    """获取指定代币的市场数据（支持 short/medium/long 动态周期）"""
+def get(symbol: str, medium_interval: str = "3m") -> MarketData:
+    """获取指定代币的市场数据（支持 short/medium/long 动态周期）
+    
+    Args:
+        symbol: 交易对符号
+        medium_interval: 交易主周期（从用户配置的scan_interval_minutes转换而来）
+    
+    Returns:
+        MarketData: 包含三个周期（short/medium/long）的完整市场数据
+    """
     # 标准化symbol
     symbol = normalize_symbol(symbol)
-    # 计算周期
-    short = short_interval
-    medium = choose_scaled_interval(short)
+    # 计算周期：medium是主周期，short约为medium的1/4，long约为medium的4-5倍
+    medium = medium_interval
+    short = choose_short_interval(medium)
     long = choose_scaled_interval(medium)
     
     # 获取K线数据

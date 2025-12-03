@@ -73,7 +73,7 @@ class Context:
     performance: Any = None  # 历史表现分析（logger.PerformanceAnalysis）
     btc_eth_leverage: int = 0  # BTC/ETH杠杆倍数（从配置读取）
     altcoin_leverage: int = 0  # 山寨币杠杆倍数（从配置读取）
-    short_interval: str = "3m"  # 短周期K线间隔（从scan_interval_minutes配置转换）
+    medium_interval: str = "3m"  # 交易主周期K线间隔（从scan_interval_minutes配置转换）
     # 交易状态字段（对齐 system_prompt 输入要求）
     last_enter_time: str = ""  # 最后开仓时间 ISO 格式
     last_stop_time: str = ""  # 最后止损时间 ISO 格式
@@ -132,6 +132,9 @@ def _fetch_market_data_for_context(ctx: Context) -> None:
     # 收集所有需要获取数据的币种
     symbol_set = set()
     
+    # 0. ⚠️ 强制添加 BTC（无论是否交易，BTC 价格都是市场状态的重要参考）
+    symbol_set.add("BTCUSDT")
+    
     # 1. 优先获取持仓币种的数据（这是必须的）
     for pos in ctx.positions:
         symbol_set.add(pos.symbol)
@@ -149,14 +152,18 @@ def _fetch_market_data_for_context(ctx: Context) -> None:
     
     for symbol in symbol_set:
         try:
-            # 使用配置的短周期K线间隔获取市场数据
-            data = get_market_data(symbol, ctx.short_interval)
+            # 使用配置的medium周期作为主交易周期获取市场数据
+            data = get_market_data(symbol, ctx.medium_interval)
             
             # ⚠️ 流动性过滤：持仓价值低于15M USD的币种不做（多空都不做）
             # 持仓价值 = 持仓量 × 当前价格
-            # 但现有持仓必须保留（需要决策是否平仓）
+            # 但以下情况必须保留：
+            #   1. 现有持仓（需要决策是否平仓）
+            #   2. BTC（作为市场状态参考，始终需要）
             is_existing_position = symbol in position_symbols
+            is_btc = symbol == "BTCUSDT"
             if (not is_existing_position and 
+                not is_btc and
                 data.open_interest and 
                 data.current_price > 0):
                 # 计算持仓价值（USD）= 持仓量 × 当前价格
