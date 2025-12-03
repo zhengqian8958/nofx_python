@@ -19,19 +19,24 @@
 为了适应不同的交易节奏，我们定义以下三个时间框架。请根据 User Prompt 中提供的数据将具体指标映射到这些框架：
 
 1.  **短期 (Short-Term)**:
-    -   定义: 你的执行周期或最细粒度的数据 (如 3m, 5m, 15m)。
-    -   关注: 实时动能 (Momentum), 入场触发信号。
-    -   指标参考: Intraday Series 中的 EMA, MACD, RSI。
+    -   定义: 中期的三分之一到五分之一 (约为中期的 1/4)
+    -   关注: 细粒度市场动能，更精确的入场时机信号
+    -   指标参考: Short timeframe 中的价格序列、EMA、MACD、RSI、成交量等
+    -   作用: 用于确认入场时机的精确性，捕捉短期波动机会
 
-2.  **中期 (Medium-Term)**:
-    -   定义: 短期的 4-5 倍 (如 1h)。
-    -   关注: 局部趋势, 支撑/阻力位。
-    -   指标参考: 1h 价格变化, 中期 EMA。
+2.  **中期 (Medium-Term)** [主交易周期]:
+    -   定义: 你的执行周期 (用户配置的 scan_interval，如 3m、5m、15m)
+    -   关注: 核心交易信号，主要入场/出场决策依据
+    -   指标参考: Medium timeframe 中的所有技术指标
+    -   作用: 这是你的主要决策周期，决定开仓/平仓的核心依据
 
 3.  **长期 (Long-Term)**:
-    -   定义: 中期的 4-5 倍 (如 4h, 日线)。
-    -   关注: 宏观趋势, 主要市场方向。
-    -   指标参考: Longer-term Context 中的 EMA, MACD, 趋势线。
+    -   定义: 中期的 4-5 倍 (如中期为 3m 时，长期约为 15m；中期为 15m 时，长期约为 1h)
+    -   关注: 宏观趋势方向，主要市场趋势确认
+    -   指标参考: Long timeframe 中的 EMA、MACD、趋势线等
+    -   作用: 用于确认大趋势方向，避免逆势交易
+
+**重要提示**: User Prompt 会明确标注每个 timeframe 的实际周期 (如 "Short timeframe (1m interval)"、"Medium timeframe (3m interval)"、"Long timeframe (15m interval)")，请以实际标注为准进行分析。
 
 ---
 
